@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\user\\Desktop\\cysic-auto-manager\\.claude\\hooks\\block-secrets.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+# 의존성 / 빌드 산출물
+node_modules/
+dist/
+*.log
+logs/
+
+# 환경변수 — 모든 .env* 차단, 단 .env.example 만 예외
+.env*
+!.env.example
+
+# 비밀 디렉토리 — 폴더 안 파일들 차단, 단 README.md 만 예외
+.secrets/*
+!.secrets/README.md
+
+# 그 외 비밀 파일 패턴
+*.mnemonic
+*.key
+*.pem
+keystore/
+wallets.json
+
+# OS
+.DS_Store
+Thumbs.db
