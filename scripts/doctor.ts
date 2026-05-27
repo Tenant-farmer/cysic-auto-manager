@@ -153,9 +153,19 @@ function add(name: string, status: "OK" | "WARN" | "FAIL", detail: string) {
       const tracked = execSync("git ls-files", { cwd: ROOT, encoding: "utf8" })
         .split(/\r?\n/)
         .filter((s) => s.length > 0);
-      const dangerous = tracked.filter((f) =>
-        /(^|\/)(\.env($|\.)|\.secrets\/(?!README\.md)|.*\.mnemonic$|.*\.key$|.*\.pem$|keystore\/|wallets\.json$)/.test(f)
-      );
+      const dangerous = tracked.filter((f) => {
+        // .env 정확히, 또는 .env.<bak/local/production/...> 단 .example/.sample/.template 은 제외
+        if (/(^|\/)\.env$/.test(f)) return true;
+        if (/(^|\/)\.env\.(?!example$|sample$|template$)/.test(f)) return true;
+        // .secrets/ 안 파일들, 단 README.md 제외
+        if (/(^|\/)\.secrets\/(?!README\.md$)/.test(f)) return true;
+        // mnemonic / key / pem 확장자
+        if (/\.(mnemonic|key|pem)$/.test(f)) return true;
+        // keystore 디렉토리, wallets.json
+        if (/(^|\/)keystore\//.test(f)) return true;
+        if (/(^|\/)wallets\.json$/.test(f)) return true;
+        return false;
+      });
       if (dangerous.length > 0) {
         add(
           "git push 안전성",

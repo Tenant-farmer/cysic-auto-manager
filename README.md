@@ -1,3 +1,5 @@
+[English](README.en.md) | [한국어](README.md)
+
 # Cysic Auto Manager
 
 Cysic mainnet 다중 지갑 자동 관리 툴.

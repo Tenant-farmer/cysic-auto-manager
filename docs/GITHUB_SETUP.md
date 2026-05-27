@@ -1,3 +1,5 @@
+[English](GITHUB_SETUP.en.md) | [한국어](GITHUB_SETUP.md)
+
 # GitHub 에 안전하게 올리기
 
 이 문서는 이 프로젝트를 **본인의 mnemonic / 개인 주소 노출 없이** GitHub 에 올리는 단계별 가이드입니다.
