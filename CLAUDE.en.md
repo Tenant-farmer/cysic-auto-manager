@@ -6,8 +6,8 @@ This project handles wallet mnemonics. A single careless tool call can permanent
 
 ## 📁 Where secrets live
 
-- **`.env`** — Chain config (RPC URLs, denom, etc.), main wallet address, runtime options. **No mnemonic here.**
-- **`.secrets/`** — Mnemonic files (`main.mnemonic`, `wallet-1.mnemonic`, ...). **Never present in the public repo.**
+- **`.env`** — Chain config (RPC URLs, denom, etc.), main wallet address, runtime options. **No keys here.**
+- **`.secrets/`** — Key files (`*.mnemonic` or `*.privkey`). **Never present in the public repo.**
 - Treat both locations as equally secret. Never dump their contents in any form.
 
 ## 🛡️ Defense in depth (already installed)
@@ -24,7 +24,7 @@ These are backstops. **The AI's own judgment is the first line of defense.**
 1. **Never open these files with `Read` / `Edit` / `Write` / `NotebookEdit`:**
    - `.env`, `.env.*`
    - `.secrets/*` (except `.secrets/README.md` after verifying it contains no secrets)
-   - `*.mnemonic`, `*.key`, `*.pem`
+   - `*.mnemonic`, `*.privkey`, `*.key`, `*.pem`
    - `keystore/`, `wallets.json`
    - Generalize: any file that may contain a mnemonic, private key, or seed phrase.
 
@@ -33,7 +33,8 @@ These are backstops. **The AI's own judgment is the first line of defense.**
    - `head .env`, `tail .env`, `less .env`, `more .env`
    - Any command that pipes `.secrets/`, `*.mnemonic`, or `*.key` to stdout.
 
-3. **If any 12/24-word BIP-39 mnemonic appears in tool output, stop immediately and inform the user of the exposure.**
+3. **If any 12/24-word BIP-39 mnemonic OR 64-char hex private key appears in tool output, stop immediately and inform the user of the exposure.**
+   - ⚠️ A bare 64-char hex string is visually indistinguishable from a tx hash. Use context: `0x...` near `.secrets/`, `.privkey`, or key-loading code is likely a key. Just after broadcasting a tx, it's a hash. When in doubt, redact and ask the user.
 
 4. **If the user pastes a mnemonic or `0x` private key directly into chat, do not quote, summarize, or repeat it in any form.** Only warn about the exposure.
 
@@ -56,9 +57,9 @@ awk -F= '/^[A-Z]/ && NF>1 {
 - If you don't know the exact match, ask the user to edit with `notepad .env` directly.
 - **Never `Read` the file to verify after editing.** If `Edit` succeeded, that's confirmation enough.
 
-### Working with `.secrets/*.mnemonic`
-- **Just don't touch them.** Ask the user to edit via `notepad .secrets/main.mnemonic`.
-- If you only need to know whether files exist, use `ls .secrets/*.mnemonic` to list names only.
+### Working with `.secrets/` key files
+- **Just don't touch them.** Ask the user to edit via `notepad .secrets/main.mnemonic` or `.secrets/main.privkey`.
+- If you only need to know whether files exist, use `ls .secrets/*.mnemonic` or `ls .secrets/*.privkey` to list names only.
 
 ## 🧠 General principles for handling secrets
 

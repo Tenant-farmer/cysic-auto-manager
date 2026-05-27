@@ -55,22 +55,35 @@ cp .env.example .env
   (Keplr 의 Cysic 계정과 같은 키로 controlled 되는 EVM 주소를 쓰면 같은 mnemonic 으로 양쪽 접근 가능)
 - 나머지는 기본값이면 됩니다.
 
-### 3. 지갑 mnemonic 설정 (가장 중요)
+### 3. 지갑 키 설정 (가장 중요)
 
-**mnemonic 은 `.env` 가 아니라 `.secrets/` 폴더에 한 파일당 한 줄로 저장합니다.**
+**키는 `.env` 가 아니라 `.secrets/` 폴더에 한 지갑당 한 파일로 저장합니다.**
+지갑마다 두 형식 중 **하나만** 선택해 사용할 수 있습니다:
+
+| 형식 | 확장자 | 내용 |
+|---|---|---|
+| BIP-39 mnemonic | `.mnemonic` | 12 또는 24 단어 (한 줄) |
+| Raw private key | `.privkey` | 64자 hex (한 줄, `0x` 접두사 선택) |
 
 ```bash
 # .secrets/ 디렉토리는 .gitignore 로 보호됨
+
+# 방식 A: mnemonic
 notepad .secrets/main.mnemonic        # 메인 지갑
 notepad .secrets/wallet-1.mnemonic    # 서브 지갑 1
-notepad .secrets/wallet-2.mnemonic    # 서브 지갑 2 ... (필요한 만큼)
+
+# 방식 B: private key
+notepad .secrets/main.privkey         # 메인 지갑
+notepad .secrets/wallet-1.privkey     # 서브 지갑 1
+
+# 지갑마다 mnemonic 과 privkey 둘 다 두면 모호하므로 에러.
 ```
 
-각 파일 내용은:
-```
-word1 word2 word3 ... word12
-```
-끝 — 따옴표/주석/공백라인 없이 mnemonic 12 또는 24 단어만.
+각 파일 내용:
+- `.mnemonic`: `word1 word2 word3 ... word12` (12 또는 24 단어)
+- `.privkey`: `0x59a5...` (64자 hex, `0x` 선택)
+
+두 형식 모두 **동일한 자산 통제권**을 부여합니다. 노출 시 위험 동일.
 
 ### 4. 첫 실행 검증
 
@@ -104,14 +117,14 @@ npm run run-all -- 5         # 위 전부 순차 실행
 ### 자동으로 적용되는 보호장치
 
 1. **`.secrets/` 분리** — mnemonic 은 `.env` 와 별도 디렉토리에 저장. 코드는 이 폴더만 읽음.
-2. **`.gitignore` 다중 패턴** — `.env`, `.env.*`, `.secrets/`, `*.mnemonic`, `*.key`, `*.pem`, `keystore/`, `wallets.json` 모두 제외.
+2. **`.gitignore` 다중 패턴** — `.env`, `.env.*`, `.secrets/`, `*.mnemonic`, `*.privkey`, `*.key`, `*.pem`, `keystore/`, `wallets.json` 모두 제외.
 3. **Claude Code PreToolUse hook** (`.claude/hooks/block-secrets.ps1`) — AI 코딩 도구로 작업 시 비밀 파일 접근을 차단.
 4. **런타임 마스킹** (`src/utils/secret-guard.ts`) — 실수로 `console.log(mnemonic)` 해도 자동 마스킹.
 5. **CLAUDE.md** — AI 에이전트가 따라야 할 규칙 명시.
 
 ### 사용자가 지켜야 할 규칙
 
-- **mnemonic 을 채팅창/이메일/메신저/AI 어시스턴트 등에 절대 붙여넣지 말 것.**
+- **mnemonic 이나 private key 를 채팅창/이메일/메신저/AI 어시스턴트 등에 절대 붙여넣지 말 것.**
 - **`.secrets/`, `.env` 폴더를 압축해서 클라우드/외부에 보내지 말 것.**
 - **누가 만든 `.bak` 백업이라도 mnemonic 평문이 들어있으면 즉시 안전 삭제.**
 - `npm run doctor` 를 자주 돌려서 보안 자세 확인.
@@ -134,7 +147,7 @@ cysic-auto-manager/
 │  ├─ index.ts                     # CLI 진입점 (commander)
 │  ├─ config/
 │  │  ├─ chains.ts                 # 체인 설정 (지연 로드)
-│  │  └─ wallets.ts                # .secrets/ 에서 mnemonic 로드
+│  │  └─ wallets.ts                # .secrets/ 에서 mnemonic 또는 privkey 로드
 │  ├─ wallet/
 │  │  ├─ cosmos.ts                 # ResolvedWallet 빌더
 │  │  ├─ ethermint-signer.ts       # Cysic 호환 OfflineDirectSigner
@@ -161,8 +174,8 @@ cysic-auto-manager/
 │  ├─ settings.local.json          # AI 코딩 도구 hook 등록
 │  └─ hooks/
 │     └─ block-secrets.ps1         # 비밀 파일 접근 차단 hook
-├─ .secrets/                       # mnemonic 저장소 (gitignored, README 제외)
-│  └─ README.md
+├─ .secrets/                       # 키 저장소 (gitignored, README 제외)
+│  └─ README.md                    # .mnemonic / .privkey 두 형식 사용법
 ├─ logs/                           # 일별 트랜잭션 로그 (gitignored)
 ├─ .env.example                    # 환경변수 템플릿 (공개)
 ├─ .env                            # 실제 환경변수 (gitignored)

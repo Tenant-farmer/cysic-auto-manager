@@ -6,8 +6,8 @@
 
 ## 📁 비밀 정보 저장 위치
 
-- **`.env`** — 체인 설정(RPC URL, denom 등) + 메인 지갑 주소 + 동작 옵션. **mnemonic 은 여기 없음.**
-- **`.secrets/`** — mnemonic 파일들 (`main.mnemonic`, `wallet-1.mnemonic`, ...) — **공개 저장소에는 절대 없음**
+- **`.env`** — 체인 설정(RPC URL, denom 등) + 메인 지갑 주소 + 동작 옵션. **키는 여기 없음.**
+- **`.secrets/`** — 키 파일들 (`*.mnemonic` 또는 `*.privkey`) — **공개 저장소에는 절대 없음**
 - 두 위치 모두 동일하게 비밀로 취급. 모든 형태의 dump 금지.
 
 ## 🛡️ 다층 방어 (설치되어 있음)
@@ -24,7 +24,7 @@
 1. **다음 파일을 `Read` / `Edit` / `Write` / `NotebookEdit` 도구로 절대 열지 말 것:**
    - `.env`, `.env.*`
    - `.secrets/*` (단, `.secrets/README.md` 는 공개 가능 — 검사 후 안전 확인된 것만)
-   - `*.mnemonic`, `*.key`, `*.pem`
+   - `*.mnemonic`, `*.privkey`, `*.key`, `*.pem`
    - `keystore/`, `wallets.json`
    - 일반화: mnemonic / private key / seed phrase 를 담을 가능성이 있는 모든 파일
 
@@ -33,7 +33,8 @@
    - `head .env`, `tail .env`, `less .env`, `more .env`
    - `.secrets/`, `*.mnemonic`, `*.key` 를 stdout 으로 출력하는 모든 명령
 
-3. **출력 어디에서든 12/24 단어 BIP39 mnemonic 형식 문자열이 발견되면 즉시 작업 중단하고 사용자에게 노출 사실을 알릴 것.**
+3. **출력 어디에서든 12/24 단어 BIP39 mnemonic 또는 64자 hex private key 형식 문자열이 발견되면 즉시 작업 중단하고 사용자에게 노출 사실을 알릴 것.**
+   - ⚠️ 64자 hex 는 tx hash 와 시각적으로 구분이 어려움. 컨텍스트로 판단: `0x...` 가 `.secrets/`, `.privkey`, 키 입력 관련 코드 근처에 등장하면 private key 일 가능성. tx 출력 직후라면 hash. 의심스러우면 마스킹하고 사용자에게 확인.
 
 4. **사용자가 채팅에 mnemonic / 0x-private-key 를 직접 붙여넣어도 절대 인용/요약/복사 형태로 출력하지 말 것.** 즉시 노출 사실 경고만.
 
@@ -56,9 +57,9 @@ awk -F= '/^[A-Z]/ && NF>1 {
 - 정확한 매칭을 모르면 사용자에게 `notepad .env` 로 직접 수정 요청.
 - **수정 후 결과 확인하려고 `Read` 하지 말 것.** Edit 가 성공했으면 그 자체로 충분.
 
-### `.secrets/` 안의 mnemonic 파일을 다뤄야 할 때
-- **그냥 만지지 말 것.** 사용자가 직접 `notepad .secrets/main.mnemonic` 으로 편집.
-- 파일 존재 여부만 알아야 하면 `ls .secrets/*.mnemonic` 으로 파일명만 확인.
+### `.secrets/` 안의 키 파일을 다뤄야 할 때
+- **그냥 만지지 말 것.** 사용자가 직접 `notepad .secrets/main.mnemonic` 또는 `.secrets/main.privkey` 로 편집.
+- 파일 존재 여부만 알아야 하면 `ls .secrets/*.mnemonic`, `ls .secrets/*.privkey` 로 파일명만 확인.
 
 ## 🧠 비밀 처리의 일반 원칙
 

@@ -55,22 +55,35 @@ Open `.env` and fill in:
   (Using an EVM address controlled by the same key as your Cysic account lets a single mnemonic work on both sides.)
 - The rest can stay at defaults.
 
-### 3. Wallet mnemonics (most important)
+### 3. Wallet keys (most important)
 
-**Mnemonics are stored in the `.secrets/` folder, one per file — NOT in `.env`.**
+**Keys are stored in the `.secrets/` folder, one file per wallet — NOT in `.env`.**
+For each wallet pick **one** of the two supported formats:
+
+| Format | Extension | Content |
+|---|---|---|
+| BIP-39 mnemonic | `.mnemonic` | 12 or 24 words on one line |
+| Raw private key | `.privkey` | 64 hex chars on one line (`0x` prefix optional) |
 
 ```bash
 # The .secrets/ directory is protected by .gitignore
+
+# Option A: mnemonic
 notepad .secrets/main.mnemonic        # main wallet
 notepad .secrets/wallet-1.mnemonic    # sub-wallet 1
-notepad .secrets/wallet-2.mnemonic    # sub-wallet 2 ... (as many as you have)
+
+# Option B: private key
+notepad .secrets/main.privkey         # main wallet
+notepad .secrets/wallet-1.privkey     # sub-wallet 1
+
+# Don't put both .mnemonic and .privkey for the same wallet — the loader errors out.
 ```
 
-Each file should contain only the 12 or 24 BIP-39 words on a single line:
-```
-word1 word2 word3 ... word12
-```
-No quotes, comments, or blank lines.
+File contents:
+- `.mnemonic`: `word1 word2 word3 ... word12` (12 or 24 words)
+- `.privkey`: `0x59a5...` (64 hex chars, `0x` optional)
+
+Both forms grant **identical control** of the wallet. Exposure risk is identical.
 
 ### 4. First-run verification
 
@@ -104,14 +117,14 @@ This tool signs transactions with **your mnemonics**. Leaking them means permane
 ### Protections that ship with the project
 
 1. **`.secrets/` separation** — mnemonics live in a directory distinct from `.env`. The code reads only this folder.
-2. **Multi-pattern `.gitignore`** — excludes `.env`, `.env.*`, `.secrets/`, `*.mnemonic`, `*.key`, `*.pem`, `keystore/`, `wallets.json`.
+2. **Multi-pattern `.gitignore`** — excludes `.env`, `.env.*`, `.secrets/`, `*.mnemonic`, `*.privkey`, `*.key`, `*.pem`, `keystore/`, `wallets.json`.
 3. **Claude Code PreToolUse hook** (`.claude/hooks/block-secrets.ps1`) — blocks AI coding tools from touching secret files.
 4. **Runtime masking** (`src/utils/secret-guard.ts`) — `console.log(mnemonic)` is auto-redacted even if it happens by accident.
 5. **CLAUDE.md** — explicit rules for AI agents that work in this repo.
 
 ### Rules you must follow
 
-- **Never paste a mnemonic into chat, email, messengers, AI assistants, etc.**
+- **Never paste a mnemonic or private key into chat, email, messengers, AI assistants, etc.**
 - **Never zip and upload `.secrets/` or `.env` to cloud or third parties.**
 - **Any `.bak` file that contains plaintext mnemonic must be securely deleted.**
 - Run `npm run doctor` frequently to check security posture.
@@ -133,7 +146,7 @@ cysic-auto-manager/
 │  ├─ index.ts                     # CLI entry (commander)
 │  ├─ config/
 │  │  ├─ chains.ts                 # chain config (lazy load)
-│  │  └─ wallets.ts                # mnemonic loader (.secrets/ only)
+│  │  └─ wallets.ts                # loads mnemonic OR private key from .secrets/
 │  ├─ wallet/
 │  │  ├─ cosmos.ts                 # ResolvedWallet builder
 │  │  ├─ ethermint-signer.ts       # Cysic-compatible OfflineDirectSigner
@@ -160,8 +173,8 @@ cysic-auto-manager/
 │  ├─ settings.local.json          # AI hook registration
 │  └─ hooks/
 │     └─ block-secrets.ps1         # blocks AI from reading secret files
-├─ .secrets/                       # mnemonic store (gitignored, only README tracked)
-│  └─ README.md
+├─ .secrets/                       # key store (gitignored, only README tracked)
+│  └─ README.md                    # explains .mnemonic / .privkey formats
 ├─ logs/                           # daily transaction logs (gitignored)
 ├─ .env.example                    # env template (tracked)
 ├─ .env                            # actual env (gitignored)

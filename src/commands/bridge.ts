@@ -6,12 +6,12 @@ import { runtime } from "../config/chains";
 export async function cmdBridge(amountStr?: string): Promise<void> {
   log.section("Cysic → BNB 브릿지");
 
-  // 메인 지갑의 mnemonic 을 wallets 로더에서 (환경변수 + .secrets/ 둘 다 처리)
+  // 메인 지갑의 키 정보를 wallets 로더에서
   const wallets = loadWallets();
   const main = wallets.find((w) => w.isMain);
   if (!main) {
     throw new Error(
-      "메인 지갑이 없습니다. .secrets/main.mnemonic 또는 MAIN_WALLET_MNEMONIC 을 설정하세요."
+      "메인 지갑이 없습니다. .secrets/main.mnemonic 또는 .secrets/main.privkey 를 설정하세요."
     );
   }
 
@@ -33,6 +33,6 @@ export async function cmdBridge(amountStr?: string): Promise<void> {
   await bridgeCysToBnb({
     amountHuman,
     recipientBnb: recipient,
-    mainMnemonic: main.mnemonic,
+    mainKey: main,
   });
 }

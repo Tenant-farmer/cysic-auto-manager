@@ -3,65 +3,95 @@ import * as fs from "fs";
 import * as path from "path";
 dotenv.config();
 
+export type KeyType = "mnemonic" | "privkey";
+
 export interface WalletEntry {
   label: string;
-  mnemonic: string;
+  keyType: KeyType;
+  keyMaterial: string; // mnemonic 문자열 또는 0x-private-key
   isMain: boolean;
 }
 
 const SECRETS_DIR = path.resolve(process.cwd(), ".secrets");
 
 /**
- * mnemonic 은 오직 .secrets/ 디렉토리에서만 읽는다.
- * 환경변수에 mnemonic 을 평문으로 두는 것은 노출 위험이 커서 의도적으로 지원하지 않는다.
+ * 한 지갑(label)의 key 파일을 찾는다.
+ *
+ * 우선순위:
+ *   - .secrets/<label>.mnemonic
+ *   - .secrets/<label>.privkey
+ *
+ * 둘 다 존재하면 모호하므로 에러.
+ * 둘 다 없으면 null.
  */
-function readMnemonicFile(fileName: string): string | null {
-  const filePath = path.join(SECRETS_DIR, fileName);
-  if (!fs.existsSync(filePath)) return null;
-  const content = fs.readFileSync(filePath, "utf8").trim();
-  return content.length > 0 ? content : null;
+function readKeyForLabel(
+  label: string
+): { keyType: KeyType; keyMaterial: string } | null {
+  const mnemFile = path.join(SECRETS_DIR, `${label}.mnemonic`);
+  const pkFile = path.join(SECRETS_DIR, `${label}.privkey`);
+  const mnemExists = fs.existsSync(mnemFile);
+  const pkExists = fs.existsSync(pkFile);
+
+  if (mnemExists && pkExists) {
+    throw new Error(
+      `${label} 에 .mnemonic 과 .privkey 가 모두 존재합니다. 하나만 두세요: ${SECRETS_DIR}`
+    );
+  }
+  if (mnemExists) {
+    const content = fs.readFileSync(mnemFile, "utf8").trim();
+    if (content.length > 0) return { keyType: "mnemonic", keyMaterial: content };
+  }
+  if (pkExists) {
+    const content = fs.readFileSync(pkFile, "utf8").trim();
+    if (content.length > 0) return { keyType: "privkey", keyMaterial: content };
+  }
+  return null;
 }
 
 /**
  * 지갑 목록 로드.
  *
- * 디렉토리 구조:
+ * 디렉토리 구조 (양식 자유 — 한 지갑당 .mnemonic 또는 .privkey 둘 중 하나):
  *   .secrets/
- *     ├─ main.mnemonic        # 메인 지갑 (보상이 모이고 브릿지를 보낼 지갑)
- *     ├─ wallet-1.mnemonic    # 서브 지갑 1
- *     ├─ wallet-2.mnemonic    # 서브 지갑 2
+ *     ├─ main.mnemonic              ─┐
+ *     │   또는                       ├─ 메인 지갑
+ *     ├─ main.privkey               ─┘
+ *     ├─ wallet-1.mnemonic           ─┐
+ *     │   또는                       ├─ 서브 지갑 1
+ *     ├─ wallet-1.privkey           ─┘
  *     └─ ...
  *
- * 파일은 mnemonic 12/24 단어를 한 줄로만 포함.
+ * Mnemonic: 12/24 단어, 공백 구분, 한 줄.
+ * Privkey:  64자 hex (0x 접두사 선택 가능), 한 줄.
  */
 export function loadWallets(): WalletEntry[] {
   const wallets: WalletEntry[] = [];
 
-  // 서브 지갑 wallet-1.mnemonic ~ 차례로 (빈 슬롯에서 중단)
+  // 서브 지갑 wallet-1 ~ 차례로 (빈 슬롯에서 중단)
   let i = 1;
   while (true) {
-    const m = readMnemonicFile(`wallet-${i}.mnemonic`);
-    if (!m) break;
-    wallets.push({ label: `wallet-${i}`, mnemonic: m, isMain: false });
+    const key = readKeyForLabel(`wallet-${i}`);
+    if (!key) break;
+    wallets.push({ label: `wallet-${i}`, isMain: false, ...key });
     i++;
   }
 
   // 메인 지갑
-  const mainM = readMnemonicFile("main.mnemonic");
-  if (mainM) {
-    wallets.push({ label: "main", mnemonic: mainM, isMain: true });
+  const mainKey = readKeyForLabel("main");
+  if (mainKey) {
+    wallets.push({ label: "main", isMain: true, ...mainKey });
   }
 
   if (wallets.length === 0) {
     throw new Error(
       [
         "지갑이 하나도 없습니다.",
-        "다음 위치에 mnemonic 파일을 만드세요:",
-        `  ${path.join(SECRETS_DIR, "main.mnemonic")}      (메인 지갑)`,
+        "다음 위치에 키 파일을 만드세요 (.mnemonic 또는 .privkey 둘 중 하나):",
+        `  ${path.join(SECRETS_DIR, "main.mnemonic")}      (메인 지갑 — mnemonic)`,
+        `  ${path.join(SECRETS_DIR, "main.privkey")}        (메인 지갑 — private key)`,
         `  ${path.join(SECRETS_DIR, "wallet-1.mnemonic")}  (서브 지갑 1)`,
-        `  ${path.join(SECRETS_DIR, "wallet-2.mnemonic")}  ... 필요한 만큼`,
         "",
-        "각 파일에는 12/24 단어 mnemonic 만 한 줄로 저장하세요.",
+        "Mnemonic: 12/24 단어 한 줄.  Private key: 64자 hex 한 줄 (0x 선택).",
       ].join("\n")
     );
   }

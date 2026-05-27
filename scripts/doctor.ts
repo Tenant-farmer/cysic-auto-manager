@@ -26,7 +26,7 @@ function add(name: string, status: "OK" | "WARN" | "FAIL", detail: string) {
     add(".gitignore", "FAIL", ".gitignore 파일 없음 — git 사용 시 위험");
   } else {
     const gi = fs.readFileSync(giPath, "utf8");
-    const required = [".env", ".secrets/", "*.mnemonic", "*.key", "*.pem"];
+    const required = [".env", ".secrets/", "*.mnemonic", "*.privkey", "*.key", "*.pem"];
     const missing = required.filter((p) => !gi.includes(p));
     if (missing.length > 0) add(".gitignore", "WARN", `누락된 패턴: ${missing.join(", ")}`);
     else add(".gitignore", "OK", "필요한 비밀 패턴 모두 등록됨");
@@ -76,16 +76,16 @@ function add(name: string, status: "OK" | "WARN" | "FAIL", detail: string) {
   } else {
     const files = fs
       .readdirSync(dir)
-      .filter((f) => f.endsWith(".mnemonic"));
+      .filter((f) => f.endsWith(".mnemonic") || f.endsWith(".privkey"));
     if (files.length === 0) {
-      add(".secrets/", "WARN", "mnemonic 파일이 없음 — 지갑 0개");
+      add(".secrets/", "WARN", "키 파일이 없음 — 지갑 0개");
     } else {
       // 내용은 안 읽고 파일 크기/모드만 확인
       const details = files.map((f) => {
         const st = fs.statSync(path.join(dir, f));
         return `${f}(${st.size}B)`;
       });
-      add(".secrets/", "OK", `${files.length}개 mnemonic 파일: ${details.join(", ")}`);
+      add(".secrets/", "OK", `${files.length}개 키 파일: ${details.join(", ")}`);
     }
   }
 }
@@ -159,8 +159,8 @@ function add(name: string, status: "OK" | "WARN" | "FAIL", detail: string) {
         if (/(^|\/)\.env\.(?!example$|sample$|template$)/.test(f)) return true;
         // .secrets/ 안 파일들, 단 README.md 제외
         if (/(^|\/)\.secrets\/(?!README\.md$)/.test(f)) return true;
-        // mnemonic / key / pem 확장자
-        if (/\.(mnemonic|key|pem)$/.test(f)) return true;
+        // mnemonic / privkey / key / pem 확장자
+        if (/\.(mnemonic|privkey|key|pem)$/.test(f)) return true;
         // keystore 디렉토리, wallets.json
         if (/(^|\/)keystore\//.test(f)) return true;
         if (/(^|\/)wallets\.json$/.test(f)) return true;

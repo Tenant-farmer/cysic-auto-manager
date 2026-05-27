@@ -1,26 +1,22 @@
 import { ethers } from "ethers";
-import { cysicEvmProvider, evmWalletFromMnemonic } from "../wallet/evm";
+import { cysicEvmProvider, evmWalletFromEntry } from "../wallet/evm";
 import { log } from "../utils/logger";
 import { shortAddr } from "../utils/format";
 import { runtime, getBnb } from "../config/chains";
 import { retry } from "../utils/retry";
+import { WalletEntry } from "../config/wallets";
 
 /**
  * Cysic → BNB 브릿지 (실증된 ABI 사용)
  *
- * 검증 정보 (2026-05-27 시점, Cysic explorer + 실제 트랜잭션 디코드):
+ * 검증 정보 (May 2026 기준):
  *   - Bridge proxy:      0x127e8564bF37d179Bf6cC57a6209a3dacB6F9045  (ERC1967Proxy)
  *   - Implementation:    0x28C2Ef1E0e52d926A9305CB9660fb386a3a4A166  (MainBridge)
  *   - Function:          withdraw(address,uint256,uint256,address)  selector=0x16762eed
  *   - Native CYS token:  0x0000000000000000000000000000000000000001  (placeholder)
  *   - BNB chain id:      56
  *   - Native 송금 시:    msg.value == amount 필수
- *
- * 호출 흐름:
- *   1. user 가 메인 지갑(0x...) 에서 bridge proxy 의 withdraw() 호출
- *   2. event InitWithdraw 발생
- *   3. BLS multi-sig validators 가 BNB 측 SideBridge 에서 mint 처리
- *   4. recipient(BNB 0x 주소) 가 BEP-20 CYS 수령
+ *   - 고정 fee:          약 2 CYS (UI 표시 기준)
  */
 
 export const BRIDGE_PROXY_ADDRESS = "0x127e8564bF37d179Bf6cC57a6209a3dacB6F9045";
@@ -35,7 +31,7 @@ const BRIDGE_ABI = [
   "function tokenCanOperation(uint256 chainId, address token) view returns (bool)",
   "function tokenMapping(uint256 chainId, address sourceToken) view returns (address)",
   "function withdrawChainNonce(uint256 chainId) view returns (uint256)",
-  "event InitWithdraw(address token, address from, uint256 amount, address recipient, uint256 targetChainId, address targetToken, uint256 nonce)",
+  "event InitWithdraw(address indexed token, address from, uint256 amount, address indexed recipient, uint256 indexed targetChainId, address targetToken, uint256 nonce)",
 ];
 
 export interface BridgeParams {
@@ -43,8 +39,8 @@ export interface BridgeParams {
   amountHuman: string;
   /** BNB 측 수신 0x 주소 */
   recipientBnb: string;
-  /** 메인 지갑 니모닉 (브릿지 서명용) */
-  mainMnemonic: string;
+  /** 메인 지갑의 키 정보 (mnemonic 또는 privkey) */
+  mainKey: WalletEntry;
   /** 브릿지 컨트랙트 주소 override (기본 BRIDGE_PROXY_ADDRESS) */
   bridgeAddress?: string;
 }
@@ -56,7 +52,7 @@ export async function bridgeCysToBnb(p: BridgeParams): Promise<{ txHash: string 
 
   const bridgeAddr = p.bridgeAddress ?? BRIDGE_PROXY_ADDRESS;
   const provider = cysicEvmProvider();
-  const wallet = evmWalletFromMnemonic(p.mainMnemonic, provider);
+  const wallet = evmWalletFromEntry(p.mainKey, provider);
 
   log.info(`Bridge 컨트랙트:  ${bridgeAddr}`);
   log.info(`송신 EVM 주소:    ${shortAddr(wallet.address)}`);
@@ -67,12 +63,10 @@ export async function bridgeCysToBnb(p: BridgeParams): Promise<{ txHash: string 
 
   const contract = new ethers.Contract(bridgeAddr, BRIDGE_ABI, wallet);
 
-  // ── 사전 점검 ──────────────────────────────────────────────────────────
+  // 사전 점검: paused 만 확인. tokenCanOperation 은 의미 불명확하므로 estimateGas 로 대체.
   const paused: boolean = await contract.paused();
   if (paused) throw new Error("브릿지가 일시중지(paused) 상태입니다.");
   log.ok(`사전 점검 통과 (paused=false)`);
-  // 참고: tokenCanOperation/tokenMapping 의 정확한 의미는 컨트랙트 소스 미공개로
-  //      추측 불가. 실제 트랜잭션은 estimateGas 가 통과하면 거의 확실히 성공.
 
   // EVM 잔액 확인
   const balance = await provider.getBalance(wallet.address);

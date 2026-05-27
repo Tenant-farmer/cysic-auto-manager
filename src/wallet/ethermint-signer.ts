@@ -14,13 +14,11 @@ import { SignDoc } from "cosmjs-types/cosmos/tx/v1beta1/tx";
  *   - HD path: m/44'/60'/0'/0/0 (Ethereum) — Keplr 가 Cysic 에 사용하는 path
  *   - 주소 파생: secp256k1 pubkey → Keccak256(uncompressed[1:]) 의 마지막 20바이트
  *                → bech32 (cysic prefix). Cosmos 표준의 SHA256+RIPEMD160 과 다름.
- *   - 서명: SHA256(signBytes) 를 secp256k1 으로 서명 (Cosmos direct 표준)
+ *   - 서명: Keccak256(signBytes) 를 secp256k1 으로 서명
  *
  * 주의: 이 signer 가 반환하는 AccountData.algo 는 "secp256k1" 이지만, 실제
- *      트랜잭션에서 pubkey 타입 URL 은 /ethermint.crypto.v1.ethsecp256k1.PubKey
- *      이어야 합니다. SigningStargateClient 의 기본 signDirect 는 이를
- *      /cosmos.crypto.secp256k1.PubKey 로 하드코딩하므로, 트랜잭션 생성 시에는
- *      별도의 헬퍼(ethermint-tx.ts) 를 사용해 manual encoding 합니다.
+ *      트랜잭션에서 pubkey 타입 URL 은 /cysicmint.crypto.v1.ethsecp256k1.PubKey
+ *      이어야 합니다. ethermint-tx.ts 에서 별도로 처리.
  */
 export class EthermintDirectSigner implements OfflineDirectSigner {
   private constructor(
@@ -30,31 +28,49 @@ export class EthermintDirectSigner implements OfflineDirectSigner {
     public readonly compressedPubkey: Uint8Array
   ) {}
 
+  /**
+   * BIP-39 mnemonic (12/24 단어) 에서 signer 생성.
+   * HD path 는 m/44'/60'/0'/0/0 (Ethereum 표준, Cysic 의 Keplr 가 사용).
+   */
   static async fromMnemonic(
     mnemonic: string,
     prefix: string
   ): Promise<EthermintDirectSigner> {
-    // ethers 기본 path = m/44'/60'/0'/0/0
     const hd = ethers.HDNodeWallet.fromPhrase(mnemonic);
-    const signingKey = new ethers.SigningKey(hd.privateKey);
+    return EthermintDirectSigner.fromPrivateKeyInternal(hd.privateKey, hd.address, prefix);
+  }
 
-    // 0x address → 20 bytes → bech32 (cysic prefix)
-    const ethAddrBytes = ethers.getBytes(hd.address);
+  /**
+   * 64자 hex private key (0x 접두사 선택) 에서 signer 생성.
+   * 단일 주소만 파생되며 mnemonic 의 HD path 와 무관.
+   */
+  static fromPrivateKey(
+    privateKeyHex: string,
+    prefix: string
+  ): EthermintDirectSigner {
+    const normalized = privateKeyHex.trim().startsWith("0x")
+      ? privateKeyHex.trim()
+      : "0x" + privateKeyHex.trim();
+    if (!/^0x[0-9a-fA-F]{64}$/.test(normalized)) {
+      throw new Error(
+        "잘못된 private key 형식. 0x 접두사 선택, 64자 hex 가 필요합니다."
+      );
+    }
+    const wallet = new ethers.Wallet(normalized);
+    return EthermintDirectSigner.fromPrivateKeyInternal(normalized, wallet.address, prefix);
+  }
+
+  private static fromPrivateKeyInternal(
+    privateKeyHex: string,
+    evmAddress: string,
+    prefix: string
+  ): EthermintDirectSigner {
+    const signingKey = new ethers.SigningKey(privateKeyHex);
+    const ethAddrBytes = ethers.getBytes(evmAddress);
     const bech32 = toBech32(prefix, ethAddrBytes);
-
-    // Compressed secp256k1 pubkey (33 bytes)
-    const compressedHex = ethers.SigningKey.computePublicKey(
-      signingKey.publicKey,
-      true
-    );
+    const compressedHex = ethers.SigningKey.computePublicKey(signingKey.publicKey, true);
     const compressedPubkey = ethers.getBytes(compressedHex);
-
-    return new EthermintDirectSigner(
-      signingKey,
-      bech32,
-      hd.address,
-      compressedPubkey
-    );
+    return new EthermintDirectSigner(signingKey, bech32, evmAddress, compressedPubkey);
   }
 
   async getAccounts(): Promise<readonly AccountData[]> {
@@ -69,8 +85,6 @@ export class EthermintDirectSigner implements OfflineDirectSigner {
 
   /**
    * Ethermint ethsecp256k1 서명: Keccak256(SignDoc bytes) → secp256k1.
-   * (표준 Cosmos direct 는 SHA256 을 쓰지만, Ethermint 체인의 verify 가
-   * Keccak256 을 사용하므로 매칭시켜야 함.)
    * 64-byte signature (r||s) 반환.
    */
   async signDirect(
@@ -96,7 +110,7 @@ export class EthermintDirectSigner implements OfflineDirectSigner {
       signed: signDoc,
       signature: {
         pub_key: {
-          type: "tendermint/PubKeySecp256k1", // amino 호환용 — broadcastTx 에서는 사용 안 됨
+          type: "tendermint/PubKeySecp256k1",
           value: Buffer.from(this.compressedPubkey).toString("base64"),
         },
         signature: Buffer.from(signature64).toString("base64"),

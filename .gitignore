@@ -14,6 +14,7 @@ logs/
 
 # 그 외 비밀 파일 패턴
 *.mnemonic
+*.privkey
 *.key
 *.pem
 keystore/
